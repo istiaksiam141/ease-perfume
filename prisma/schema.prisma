@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  COD
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+
+model Product {
+  id              String           @id
+  name            String
+  brand           String           @default("Ease")
+  category        String?
+  gender          String?
+  fragranceFamily String?
+  topNotes        String[]         @default([])
+  heartNotes      String[]         @default([])
+  baseNotes       String[]         @default([])
+  description     String?
+  image           String
+  featured        Boolean          @default(false)
+  available       Boolean          @default(false)
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  variants        ProductVariant[]
+  orderItems      OrderItem[]
+}
+
+model ProductVariant {
+  id        String      @id @default(cuid())
+  productId String
+  size      String
+  price     Int
+  stock     Int         @default(0)
+  available Boolean     @default(false)
+  product   Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+
+  @@unique([productId, size])
+  @@index([productId])
+}
+
+model Order {
+  id             Int           @id @default(autoincrement())
+  orderNumber    String        @unique
+  receiptToken   String        @unique
+  customerName   String
+  phone          String
+  email          String?
+  address        String
+  city           String
+  area           String
+  note           String?
+  deliveryZone   String
+  subtotal       Int
+  deliveryCharge Int
+  total          Int
+  paymentMethod  PaymentMethod @default(COD)
+  paymentStatus  PaymentStatus @default(UNPAID)
+  orderStatus    OrderStatus   @default(PENDING)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  items          OrderItem[]
+
+  @@index([phone, orderNumber])
+  @@index([createdAt])
+  @@index([orderStatus])
+}
+
+model OrderItem {
+  id          Int            @id @default(autoincrement())
+  orderId     Int
+  productId   String
+  variantId   String
+  productName String
+  productImage String
+  size        String
+  quantity    Int
+  unitPrice   Int
+  totalPrice  Int
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  variant     ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model StoreConfig {
+  id                     Int      @id @default(1)
+  insideCityLabel        String   @default("Inside city")
+  outsideCityLabel       String   @default("Outside city")
+  insideCityDelivery     Int      @default(0)
+  outsideCityDelivery    Int      @default(0)
+  updatedAt              DateTime @updatedAt
+}

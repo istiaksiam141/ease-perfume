@@ -1,0 +1,49 @@
+import { NextResponse } from "next/server";
+import { assertSameOrigin, requireAdminApi } from "@/lib/auth";
+import { prisma } from "@/lib/db";
+import { errorResponse, HttpError, stringField } from "@/lib/http";
+
+export const dynamic = "force-dynamic";
+export async function GET() {
+  if (!await requireAdminApi()) return NextResponse.json({ error: "Please sign in as an admin." }, { status: 401 });
+  try { return NextResponse.json(await prisma.product.findMany({ orderBy: [{ active: "desc" }, { name: "asc" }], include: { variants: { orderBy: { price: "asc" } } } })); }
+  catch { return NextResponse.json({ error: "Products are temporarily unavailable." }, { status: 503 }); }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    assertSameOrigin(request);
+    if (!await requireAdminApi()) throw new HttpError(401, "Please sign in as an admin.");
+    const body = await request.json();
+    if (!Array.isArray(body?.products) || body.products.length > 250) throw new HttpError(400, "Product updates are invalid.");
+    await prisma.$transaction(async tx => {
+      for (const item of body.products) {
+        if (typeof item?.id !== "string" || typeof item.featured !== "boolean" || typeof item.active !== "boolean" || !Array.isArray(item.variants)) throw new HttpError(400, "Product update is invalid.");
+        for (const variant of item.variants) {
+          if (typeof variant.id !== "string" || !Number.isInteger(variant.price) || variant.price < 0 || variant.price > 1000000 || !Number.isInteger(variant.stock) || variant.stock < 0 || variant.stock > 1000000 || typeof variant.available !== "boolean") throw new HttpError(400, "Price and stock must be valid non-negative whole numbers.");
+          await tx.productVariant.update({ where: { id: variant.id, productId: item.id }, data: { price: variant.price, stock: variant.stock, available: variant.available } });
+        }
+        const variants = await tx.productVariant.findMany({ where: { productId: item.id }, select: { available: true, stock: true } });
+        await tx.product.update({ where: { id: item.id }, data: { featured: item.featured, active: item.active, available: variants.some(v => v.stock > 0) } });
+      }
+    });
+    return NextResponse.json({ ok: true });
+  } catch (error) { return errorResponse(error); }
+}
+
+export async function POST(request: Request) {
+  try {
+    assertSameOrigin(request);
+    if (!await requireAdminApi()) throw new HttpError(401, "Please sign in as an admin.");
+    const body = await request.json();
+    const name = stringField(body?.name, "Product name", 120);
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+    if (!id || id.length > 100) throw new HttpError(400, "Use an English product name so it can have a safe product ID.");
+    const image = stringField(body?.image, "Image path", 200);
+    if (!/^\/assets\/[a-zA-Z0-9._-]+\.(png|jpg|jpeg|webp)$/i.test(image)) throw new HttpError(400, "Image must be a file in the public assets folder, such as /assets/new-scent.png.");
+    const p35 = Number(body?.price35), p7 = Number(body?.price7);
+    if (!Number.isInteger(p35) || p35 < 0 || p35 > 1000000 || !Number.isInteger(p7) || p7 < 0 || p7 > 1000000) throw new HttpError(400, "Enter whole-number prices between ৳0 and ৳1,000,000.");
+    await prisma.product.create({ data: { id, name, brand: "Ease", image, available: false, active: true, featured: false, variants: { create: [{ size: "3.5 ml", price: p35 }, { size: "7 ml", price: p7 }] } } });
+    return NextResponse.json({ ok: true, id }, { status: 201 });
+  } catch (error) { return errorResponse(error); }
+}
