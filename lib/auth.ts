@@ -39,12 +39,18 @@ export async function currentAdmin() {
   const jar = await cookies();
   const id = verifyAdminToken(jar.get(COOKIE_NAME)?.value);
   if (!id) return null;
-  return prisma.admin.findUnique({ where: { id }, select: { id: true, email: true } });
+  return prisma.admin.findUnique({ where: { id }, select: { id: true, email: true, isMainAdmin: true } });
 }
 
 export async function requireAdminPage() {
   const admin = await currentAdmin();
   if (!admin) redirect("/admin/login");
+  return admin;
+}
+
+export async function requireMainAdminPage() {
+  const admin = await requireAdminPage();
+  if (!admin.isMainAdmin) redirect("/admin");
   return admin;
 }
 

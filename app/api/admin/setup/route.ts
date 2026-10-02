@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const admin = await prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT TRUE AS "locked" FROM (SELECT pg_advisory_xact_lock(81920417)) AS advisory_lock`;
       if (await tx.admin.count() > 0) throw new HttpError(409, "An admin account already exists. Use the admin login page.");
-      return tx.admin.create({ data: { email, passwordHash }, select: { id: true, email: true } });
+      return tx.admin.create({ data: { email, passwordHash, isMainAdmin: true }, select: { id: true, email: true } });
     }, { isolationLevel: "Serializable" });
     const response = NextResponse.json({ email: admin.email }, { status: 201 });
     response.cookies.set(setAdminCookie(createAdminToken(admin.id)));
