@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL! }) });
 const catalog = [
   ["Dunhill Desire", "dunhill-desire.png", false], ["Crush", "crush.png", true],
   ["Chairman", "chairman.png", false], ["Second Wife", "second-wife.png", false],
