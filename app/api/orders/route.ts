@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     const quantities = new Map<string, number>();
     for (const raw of body.items as CartLine[]) {
       if (!raw || typeof raw.productId !== "string" || !/^[a-z0-9-]{1,100}$/.test(raw.productId)) throw new HttpError(400, "One of the products in your cart is invalid.");
-      if (raw.size !== "3.5 ml" && raw.size !== "7 ml") throw new HttpError(400, "Choose a valid product size.");
+      if (raw.size !== "3.5 ml" && raw.size !== "6 ml") throw new HttpError(400, "Choose a valid product size.");
       if (!Number.isInteger(raw.quantity) || raw.quantity < 1 || raw.quantity > 25) throw new HttpError(400, "Product quantities must be between 1 and 25.");
       const key = `${raw.productId}\u0000${raw.size}`;
       quantities.set(key, (quantities.get(key) ?? 0) + raw.quantity);

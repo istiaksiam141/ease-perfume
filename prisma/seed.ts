@@ -29,7 +29,7 @@ async function main() {
         available: false,
         variants: { create: [
           { size: "3.5 ml", price: 130, stock: 0, available: false },
-          { size: "7 ml", price: 260, stock: 0, available: false }
+          { size: "6 ml", price: 250, stock: 0, available: false }
         ] }
       }
     });
