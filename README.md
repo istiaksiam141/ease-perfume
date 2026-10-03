@@ -27,7 +27,8 @@ From this directory:
 1. Configure `DATABASE_URL` with the Neon connection string for this store. Keep it in the deployment secret manager or an ignored local `.env` file.
 2. Set `SESSION_SECRET` to a private random value of at least 32 characters.
 3. Set `ADMIN_SETUP_TOKEN` to a separate one-time random value of at least 24 characters for first-admin setup. Do not commit `.env` or share the token.
-4. Install and build the application:
+4. In Vercel, open the project’s **Storage** tab, create a **public** Blob store, and connect it to this project. Vercel adds `BLOB_READ_WRITE_TOKEN` to the project environment. If it is not added automatically, copy the store’s read-write token into **Project → Settings → Environment Variables** with the exact name `BLOB_READ_WRITE_TOKEN`; enable it for Production (and Preview if you test preview deployments). Keep it server-side; do not prefix it with `NEXT_PUBLIC_`. Redeploy after adding/changing environment variables.
+5. Install and build the application:
 
 ```sh
 npm install
@@ -41,12 +42,12 @@ Use `npm run dev` for local development. The app connects to the same Neon datab
 ## First admin and opening orders
 
 1. If there is no admin account, visit `/admin/setup` and create the first account using `ADMIN_SETUP_TOKEN`. If an account already exists, sign in at `/admin/login` with its existing credentials; first-admin setup is disabled after account creation.
-2. In Admin → Products, add each product with its deployed `/assets/...` image path. Set the per-size price and stock, then mark only fulfilable sizes available.
+2. In Admin → Products, upload a JPEG, PNG, or WebP image up to 4 MB, or provide an HTTPS image URL / existing `/assets/...` path. Set the per-size price and stock, then mark only fulfilable sizes available.
 3. In Admin → Settings, set the delivery labels and fees for both delivery zones. Missing settings default to ৳0 until saved.
 4. Add an available fragrance to the bag and complete checkout. The server reads current prices, stock, and delivery fees from Neon and calculates the order total. Orders appear in Admin → Orders.
 5. The confirmation page displays the receipt in the same browser session. To track from another device, use the order number and the phone number entered at checkout.
 
-New product images should be placed in `public/assets/`, then referenced from Admin → Products with a path such as `/assets/new-scent.png`. New products begin unavailable with zero stock.
+Uploaded product images are stored in Vercel Blob and their public URLs are saved in `Product.image`, so they persist across deployments. Existing images in `public/assets/` remain supported. New products begin unavailable with zero stock.
 
 ## Environment variables
 
@@ -55,11 +56,12 @@ New product images should be placed in `public/assets/`, then referenced from Ad
 | `DATABASE_URL` | Neon PostgreSQL connection string; server-side only. |
 | `SESSION_SECRET` | Signs admin session cookies. Keep secret and stable across deploys. |
 | `ADMIN_SETUP_TOKEN` | Authorizes the one-time first-admin account creation. Remove or rotate it after setup. |
+| `BLOB_READ_WRITE_TOKEN` | Server-only write token for the connected public Vercel Blob store. Vercel can add it automatically when the store is connected. |
 | `NODE_ENV` | Set by Next.js in normal development/production workflows. |
 
 ## Deploying
 
-Use the configured Neon database, keep secrets in the host's secret manager, and deploy with `npm run build` and `npm start`. Run `npx prisma migrate deploy` only when deploying a reviewed schema change. Enforce HTTPS in production so the admin session cookie is secure. Back up the database regularly. Product image files must be committed under `public/assets/` so they are included in production builds.
+Use the configured Neon database and connected Vercel Blob store, keep secrets in the host's secret manager, and deploy with `npm run build` and `npm start`. Run `npx prisma migrate deploy` only when deploying a reviewed schema change. Enforce HTTPS in production so the admin session cookie is secure. Back up the database regularly.
 
 ## Adding online payments later
 
