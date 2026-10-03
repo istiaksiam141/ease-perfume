@@ -1,5 +1,76 @@
 "use client";
-import { FormEvent,useEffect,useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Message } from "../admin-ui";
-type Variant={id:string;size:string;price:number;stock:number;available:boolean};type Product={id:string;name:string;image:string;featured:boolean;active:boolean;available:boolean;variants:Variant[]};
-export default function ProductsManager(){const [products,setProducts]=useState<Product[]|null>(null),[error,setError]=useState(""),[message,setMessage]=useState("");useEffect(()=>{fetch("/api/admin/products").then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.error);setProducts(d)}).catch(e=>setError(e.message||"Unable to load products."))},[]);function patch(id:string,fn:(p:Product)=>Product){setProducts(xs=>xs?.map(p=>p.id===id?fn(p):p)||[])}async function save(product:Product){setError("");setMessage("");try{const r=await fetch("/api/admin/products",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({products:[product]})});const d=await r.json();if(!r.ok)throw new Error(d.error);setMessage(`${product.name} saved.`)}catch(e){setError(e instanceof Error?e.message:"Unable to save product.")}}async function add(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);setError("");try{const r=await fetch("/api/admin/products",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:f.get("name"),image:f.get("image")})});const d=await r.json();if(!r.ok)throw new Error(d.error);setMessage("Product added. Add its image file to public/assets, then set stock and availability.");e.currentTarget.reset();const r2=await fetch("/api/admin/products");setProducts(await r2.json())}catch(e){setError(e instanceof Error?e.message:"Unable to create product.")}}return <><Message text={error}/><Message text={message} kind="success"/><section className="panel"><h2>Add product</h2><p className="small">For a new image, place its file in <code>public/assets</code> first. Every product uses the same two sizes and prices.</p><form onSubmit={add} className="grid"><div className="field"><label>Product name</label><input name="name" required maxLength={120}/></div><div className="field"><label>Image path</label><input name="image" placeholder="/assets/product-name.png" required/></div><p className="small">3.5 ml · ৳130 &nbsp; | &nbsp; 6 ml · ৳250</p><button>Add product</button></form></section>{!products?<p>{error||"Loading products…"}</p>:!products.length?<section className="panel">No products found.</section>:products.map(p=><section className="panel" key={p.id}><div className="subnav"><div className="inline"><img src={p.image} alt="" width="52" height="65" style={{objectFit:"cover"}}/><div><h2 style={{margin:"0 0 4px"}}>{p.name}</h2><span className="muted small">{p.id}</span></div></div><button onClick={()=>save(p)}>Save product</button></div><div className="product-admin" style={{gridTemplateColumns:"90px 1fr 1fr"}}><strong>Size</strong><strong>Price · ৳</strong><strong>Stock on hand</strong></div>{p.variants.map(v=><div className="product-admin" key={v.id} style={{gridTemplateColumns:"90px 1fr 1fr"}}><strong>{v.size}</strong><strong>৳{v.price}</strong><input type="number" min="0" step="1" aria-label={`${p.name} ${v.size} stock`} value={v.stock} onChange={e=>patch(p.id,x=>({...x,variants:x.variants.map(y=>y.id===v.id?{...y,stock:+e.target.value}:y)}))}/><label className="inline small" style={{gridColumn:"1/-1"}}><input type="checkbox" checked={v.available} onChange={e=>patch(p.id,x=>({...x,variants:x.variants.map(y=>y.id===v.id?{...y,available:e.target.checked}:y)}))}/> Available to order</label></div>)}<div className="stack" style={{marginTop:12}}><label className="inline small"><input type="checkbox" checked={p.featured} onChange={e=>patch(p.id,x=>({...x,featured:e.target.checked}))}/> Featured</label><label className="inline small"><input type="checkbox" checked={p.active} onChange={e=>patch(p.id,x=>({...x,active:e.target.checked}))}/> Active in catalog</label></div></section>)}</>}
+
+type Variant = { id: string; size: string; price: number; stock: number; available: boolean };
+type Product = { id: string; name: string; image: string; featured: boolean; active: boolean; available: boolean; variants: Variant[] };
+
+export default function ProductsManager() {
+  const [products, setProducts] = useState<Product[] | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
+  async function loadProducts() {
+    const response = await fetch("/api/admin/products", { cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Unable to load products.");
+    setProducts(data);
+  }
+
+  useEffect(() => { loadProducts().catch(e => setError(e.message || "Unable to load products.")); }, []);
+
+  function patch(id: string, fn: (product: Product) => Product) {
+    setProducts(current => current?.map(product => product.id === id ? fn(product) : product) || []);
+  }
+
+  async function save(product: Product) {
+    setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/admin/products", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ products: [product] }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to save product.");
+      setMessage(`${product.name} saved.`);
+      await loadProducts();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to save product."); }
+  }
+
+  async function add(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setError(""); setMessage("");
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await fetch("/api/admin/products", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: form.get("name"), image: form.get("image") }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Unable to create product.");
+      event.currentTarget.reset();
+      setMessage("Product added. Set its prices and stock, then mark each size available when ready.");
+      await loadProducts();
+    } catch (e) { setError(e instanceof Error ? e.message : "Unable to create product."); }
+  }
+
+  return <>
+    <Message text={error} /><Message text={message} kind="success" />
+    <section className="panel">
+      <h2>Add product</h2>
+      <p className="small">Use an image already deployed in <code>public/assets</code>, such as <code>/assets/new-scent.png</code>.</p>
+      <form onSubmit={add} className="grid">
+        <div className="field"><label htmlFor="product-name">Product name</label><input id="product-name" name="name" required maxLength={120} /></div>
+        <div className="field"><label htmlFor="product-image">Image path</label><input id="product-image" name="image" placeholder="/assets/product-name.png" required /></div>
+        <button>Add product</button>
+      </form>
+    </section>
+    {!products ? <p>{error || "Loading products…"}</p> : !products.length ? <section className="panel">No products found. Add your first product above.</section> : products.map(product => <section className="panel" key={product.id}>
+      <div className="subnav"><div className="inline"><img src={product.image} alt="" width="52" height="65" style={{ objectFit: "cover" }} /><div><h2 style={{ margin: "0 0 4px" }}>{product.name}</h2><span className="muted small">{product.id}</span></div></div><button onClick={() => save(product)}>Save product</button></div>
+      <div className="product-admin" style={{ gridTemplateColumns: "90px 1fr 1fr" }}><strong>Size</strong><strong>Price · ৳</strong><strong>Stock on hand</strong></div>
+      {product.variants.map(variant => <div className="product-admin" key={variant.id} style={{ gridTemplateColumns: "90px 1fr 1fr" }}>
+        <strong>{variant.size}</strong>
+        <input type="number" min="0" max="1000000" step="1" aria-label={`${product.name} ${variant.size} price`} value={variant.price} onChange={event => patch(product.id, p => ({ ...p, variants: p.variants.map(v => v.id === variant.id ? { ...v, price: Number(event.target.value) } : v) }))} />
+        <input type="number" min="0" max="1000000" step="1" aria-label={`${product.name} ${variant.size} stock`} value={variant.stock} onChange={event => patch(product.id, p => ({ ...p, variants: p.variants.map(v => v.id === variant.id ? { ...v, stock: Number(event.target.value) } : v) }))} />
+        <label className="inline small" style={{ gridColumn: "1/-1" }}><input type="checkbox" checked={variant.available} onChange={event => patch(product.id, p => ({ ...p, variants: p.variants.map(v => v.id === variant.id ? { ...v, available: event.target.checked } : v) }))} /> Available to order</label>
+      </div>)}
+      <div className="stack" style={{ marginTop: 12 }}>
+        <label className="inline small"><input type="checkbox" checked={product.featured} onChange={event => patch(product.id, p => ({ ...p, featured: event.target.checked }))} /> Featured</label>
+        <label className="inline small"><input type="checkbox" checked={product.active} onChange={event => patch(product.id, p => ({ ...p, active: event.target.checked }))} /> Active in catalog</label>
+      </div>
+    </section>)}
+  </>;
+}

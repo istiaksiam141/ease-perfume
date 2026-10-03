@@ -1,11 +1,11 @@
 # Ease Perfume ordering system
 
-This project keeps the original Ease storefront in `public/store.html` and serves it at `/` through the small Next.js application. The logo, uploaded product artwork, colors, typography, responsive rules, product cards, cursor movement and 3D interactions remain in that storefront. Checkout and order management are added as app routes and server APIs.
+This project keeps the Ease storefront in `public/store.html` and serves it at `/` through the Next.js application. Product artwork is served from `public/assets/`. Checkout and order management use server APIs and the configured Neon PostgreSQL database.
 
 ## What is included
 
 - Cash-on-delivery checkout with Bangladesh phone validation and friendly form errors.
-- PostgreSQL order, order-item, customer, admin, product, size-variant, stock and delivery settings tables.
+- Neon PostgreSQL order, order-item, admin, product, size-variant, stock and delivery settings tables.
 - Server-side product/price/stock lookup. Browser-submitted totals and prices are ignored.
 - Serializable order transaction with conditional stock decrement; failed orders roll back.
 - Persistent cart in local storage and a receipt token for the just-created order confirmation.
@@ -17,37 +17,33 @@ This project keeps the original Ease storefront in `public/store.html` and serve
 ## Requirements
 
 - Node.js 20.9 or newer.
-- PostgreSQL 14 or newer.
+- A Neon PostgreSQL database configured by `DATABASE_URL`.
 - npm.
 
 ## Configure and run
 
 From this directory:
 
-1. Copy `.env.example` to `.env`.
-2. Set `DATABASE_URL` to your PostgreSQL connection string. Use a database dedicated to this store.
-3. Set `SESSION_SECRET` to a private random value of at least 32 characters.
-4. Set `ADMIN_SETUP_TOKEN` to a separate one-time random value of at least 24 characters. Do not commit `.env` or share the token.
-5. Install and initialize the database:
+1. Configure `DATABASE_URL` with the Neon connection string for this store. Keep it in the deployment secret manager or an ignored local `.env` file.
+2. Set `SESSION_SECRET` to a private random value of at least 32 characters.
+3. Set `ADMIN_SETUP_TOKEN` to a separate one-time random value of at least 24 characters for first-admin setup. Do not commit `.env` or share the token.
+4. Install and build the application:
 
 ```sh
 npm install
 npx prisma generate
-npx prisma migrate dev
-npm run db:seed
-npm run dev
+npm run build
+npm run start
 ```
 
-Open `http://localhost:3000` for the storefront.
-
-The seed adds the 16 products whose names are visible in the supplied photos and the two sizes/starting prices you provided. Fragrance notes, gender and scent families are left blank where you did not supply them. Stock starts at zero, all variants start unavailable, and both delivery fees start at ৳0. You can edit delivery fees in Admin → Settings.
+Use `npm run dev` for local development. The app connects to the same Neon database configured in `DATABASE_URL`; it does not use a local PostgreSQL server. Do not run `prisma migrate dev` or `db:seed` against production. Apply reviewed schema migrations with `npx prisma migrate deploy` only when a migration is needed.
 
 ## First admin and opening orders
 
-1. Visit `http://localhost:3000/admin/setup` and create the first admin account using `ADMIN_SETUP_TOKEN`. Use a unique email and a password of at least 12 characters.
-2. Visit Admin → Products. Enter the real quantity you have for each size, confirm the prices, and enable only the variants you can fulfil.
-3. Visit Admin → Settings. Edit the delivery labels and fees for both delivery zones. Fees may be ৳0.
-4. Add an available fragrance to the bag and complete checkout. Choose Cash on Delivery. The successful order appears in Admin → Orders.
+1. If there is no admin account, visit `/admin/setup` and create the first account using `ADMIN_SETUP_TOKEN`. If an account already exists, sign in at `/admin/login` with its existing credentials; first-admin setup is disabled after account creation.
+2. In Admin → Products, add each product with its deployed `/assets/...` image path. Set the per-size price and stock, then mark only fulfilable sizes available.
+3. In Admin → Settings, set the delivery labels and fees for both delivery zones. Missing settings default to ৳0 until saved.
+4. Add an available fragrance to the bag and complete checkout. The server reads current prices, stock, and delivery fees from Neon and calculates the order total. Orders appear in Admin → Orders.
 5. The confirmation page displays the receipt in the same browser session. To track from another device, use the order number and the phone number entered at checkout.
 
 New product images should be placed in `public/assets/`, then referenced from Admin → Products with a path such as `/assets/new-scent.png`. New products begin unavailable with zero stock.
@@ -56,14 +52,14 @@ New product images should be placed in `public/assets/`, then referenced from Ad
 
 | Variable | Use |
 | --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string; server-side only. |
+| `DATABASE_URL` | Neon PostgreSQL connection string; server-side only. |
 | `SESSION_SECRET` | Signs admin session cookies. Keep secret and stable across deploys. |
 | `ADMIN_SETUP_TOKEN` | Authorizes the one-time first-admin account creation. Remove or rotate it after setup. |
 | `NODE_ENV` | Set by Next.js in normal development/production workflows. |
 
 ## Deploying
 
-Use a managed PostgreSQL database, set the three secrets in the host's secret manager, run `npx prisma migrate deploy`, then run `npm run build` and `npm start`. Enforce HTTPS in production so the admin session cookie is secure. Back up the database regularly.
+Use the configured Neon database, keep secrets in the host's secret manager, and deploy with `npm run build` and `npm start`. Run `npx prisma migrate deploy` only when deploying a reviewed schema change. Enforce HTTPS in production so the admin session cookie is secure. Back up the database regularly. Product image files must be committed under `public/assets/` so they are included in production builds.
 
 ## Adding online payments later
 
@@ -72,5 +68,5 @@ Online payments are intentionally not enabled. Add a provider implementation beh
 ## Limitations to configure before launch
 
 - Actual stock quantities were not included with the supplied images, so inventory must be entered in Admin. Delivery fees default to ৳0 and can be edited in Admin → Settings.
-- The first-admin setup token and database must be configured before any order-management feature can be used.
+- The first-admin setup token is needed only before the first admin account exists; it does not reset or replace existing accounts.
 - This first version does not send SMS/email receipts or connect to a courier; it records the order and presents a browser receipt.

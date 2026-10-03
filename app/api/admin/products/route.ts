@@ -20,12 +20,12 @@ export async function PATCH(request: Request) {
       for (const item of body.products) {
         if (typeof item?.id !== "string" || typeof item.featured !== "boolean" || typeof item.active !== "boolean" || !Array.isArray(item.variants)) throw new HttpError(400, "Product update is invalid.");
         for (const variant of item.variants) {
-          const fixedPrice = variant.size === "3.5 ml" ? 130 : variant.size === "6 ml" ? 250 : null;
-          if (typeof variant.id !== "string" || fixedPrice === null || !Number.isInteger(variant.stock) || variant.stock < 0 || variant.stock > 1000000 || typeof variant.available !== "boolean") throw new HttpError(400, "Product size, stock, or availability is invalid.");
-          await tx.productVariant.update({ where: { id: variant.id, productId: item.id }, data: { price: fixedPrice, stock: variant.stock, available: variant.available } });
+          if (typeof variant.id !== "string" || (variant.size !== "3.5 ml" && variant.size !== "6 ml") || !Number.isInteger(variant.price) || variant.price < 0 || variant.price > 1000000 || !Number.isInteger(variant.stock) || variant.stock < 0 || variant.stock > 1000000 || typeof variant.available !== "boolean") throw new HttpError(400, "Product size, price, stock, or availability is invalid.");
+          const changed = await tx.productVariant.updateMany({ where: { id: variant.id, productId: item.id, size: variant.size }, data: { price: variant.price, stock: variant.stock, available: variant.available } });
+          if (changed.count !== 1) throw new HttpError(400, "A product size could not be updated.");
         }
         const variants = await tx.productVariant.findMany({ where: { productId: item.id }, select: { available: true, stock: true } });
-        await tx.product.update({ where: { id: item.id }, data: { featured: item.featured, active: item.active, available: variants.some(v => v.stock > 0) } });
+        await tx.product.update({ where: { id: item.id }, data: { featured: item.featured, active: item.active, available: variants.some(v => v.available && v.stock > 0) } });
       }
     });
     return NextResponse.json({ ok: true });

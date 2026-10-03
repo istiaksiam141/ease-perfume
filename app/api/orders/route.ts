@@ -46,8 +46,8 @@ export async function POST(request: Request) {
         const [productId, size] = key.split("\u0000");
         const variant = await tx.productVariant.findUnique({ where: { productId_size: { productId, size } }, include: { product: true } });
         if (!variant || !variant.product.active) throw new HttpError(409, "A product in your cart is currently unavailable. Please remove it and try again.");
-        if (variant.stock < quantity) throw new HttpError(409, `${variant.product.name} has only ${variant.stock} of the selected size available.`);
-        const changed = await tx.productVariant.updateMany({ where: { id: variant.id, stock: { gte: quantity } }, data: { stock: { decrement: quantity } } });
+        if (!variant.available || variant.stock < quantity) throw new HttpError(409, `${variant.product.name} (${size}) is currently unavailable or does not have enough stock.`);
+        const changed = await tx.productVariant.updateMany({ where: { id: variant.id, available: true, stock: { gte: quantity } }, data: { stock: { decrement: quantity } } });
         if (changed.count !== 1) throw new HttpError(409, `${variant.product.name} just sold out in that size. Please review your cart.`);
         const totalPrice = variant.price * quantity;
         subtotal += totalPrice;
