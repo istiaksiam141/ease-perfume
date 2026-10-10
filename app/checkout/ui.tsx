@@ -6,6 +6,14 @@ type Product = { id: string; name: string; image: string; variants: { size: stri
 type Config = { insideCityLabel: string; outsideCityLabel: string; insideCityDelivery: number | null; outsideCityDelivery: number | null };
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const money = (n: number) => `৳${n.toLocaleString("en-BD")}`;
+type SavedOrder = { orderNumber: string; receiptToken: string };
+function saveOrderForThisBrowser(order: SavedOrder) {
+  try {
+    const prior = JSON.parse(localStorage.getItem("ease-saved-orders") || "[]");
+    const orders = Array.isArray(prior) ? prior.filter((entry): entry is SavedOrder => typeof entry?.orderNumber === "string" && typeof entry?.receiptToken === "string" && entry.orderNumber !== order.orderNumber) : [];
+    localStorage.setItem("ease-saved-orders", JSON.stringify([order, ...orders].slice(0, 20)));
+  } catch { /* Order placement must succeed even if browser storage is unavailable. */ }
+}
 
 export default function CheckoutClient() {
   const [cart, setCart] = useState<CartLine[]>([]), [products, setProducts] = useState<Product[]>([]), [config, setConfig] = useState<Config | null>(null);
@@ -31,7 +39,9 @@ export default function CheckoutClient() {
       const response = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ deliveryZone: zone, items: cart.map(x => ({ productId: x.id || slug(x.name), size: x.size, quantity: x.qty })), customer: { name: form.get("name"), phone, email: form.get("email"), address: form.get("address"), city: form.get("city"), area: form.get("area"), note: form.get("note") } }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "We couldn't place the order. Please try again.");
-      sessionStorage.setItem("ease-order-receipt", JSON.stringify({ orderNumber: data.orderNumber, receiptToken: data.receiptToken }));
+      const receipt = { orderNumber: data.orderNumber, receiptToken: data.receiptToken };
+      sessionStorage.setItem("ease-order-receipt", JSON.stringify(receipt));
+      saveOrderForThisBrowser(receipt);
       localStorage.setItem("ease-last-order-number", data.orderNumber);
       localStorage.removeItem("ease-cart"); window.location.href = `/order-success?order=${encodeURIComponent(data.orderNumber)}`;
     } catch (err) { setError(err instanceof Error ? err.message : "Network error. Please check your connection and retry."); setLoading(false); }
